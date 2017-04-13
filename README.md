@@ -1,1 +1,1 @@
-# Homework
+# MSBA programming projects
