@@ -1,0 +1,211 @@
+#======================================================================#
+#                                                                      #
+#  Social Network Analytics Final Project Programming File 1           #
+#  Centrality Measures for FreqOfAdvice, Clustering, and Communities   #
+#                                                                      #
+#  Who demonstrates true leadership in terms of giving                 #
+#  frequent and valuable advice at Superhero Consulting LLC?           #
+#                                                                      #
+#  Group Members:  Daniel Chen, Sara Kalwar, Hegi Wang, Yunning Zhu    #
+#                                                                      #
+#  Input Datasets:  FreqOfAdvice, ValueOfAdvice, ListOfVertices        #
+#                                                                      #
+#  Executive Summary:                                                  #
+#                                                                      #
+#  Our project examines the intra-organizational network of            #
+#  46-employee consulting firm.  For confidential purposes, we have    # 
+#  renamed the company to Superhero Consulting LLC and replaced the    # 
+#  employee names with Marvel superhero aliases.  We have 3            #
+#  datasets: (1) "FreqOfAdvice", in which the ties are differentiated  # 
+#  on a scale from 0 to 5 in terms of frequency of information or      #
+#  advice requests (5 being the most frequent); (2) "ValueOfAdvice",   # 
+#  in which the ties are differentiated in terms of the value placed   # 
+#  on the information or advice received (5 being the strongest);      # 
+#  (3) "ListOfVertices", in which nodal attributes such as             #
+#  Organizational Level, Gender, Region, and Location are provided.    #
+#                                                                      #
+#  Our main objective is to determine who demonstrates true            #
+#  leadership at Superhero Consulting LLC in terms of giving frequent  # 
+#  AND valuable advice.  Based on the centrality measures of both      # 
+#  the frequency and valuableness datasets, 3 persons (or 3            # 
+#  characters) stand out:  (1) Batman; (2) Human Torch; (3)            # 
+#  Invisible Woman.  Batman and Human Torch seem to be the most        #
+#  respected and have the highest network importance while Invisible   # 
+#  Woman, being the most reachable and popular, is also the bridge     # 
+#  that connects the cliques in the network.  The importance of        #   
+#  Human Torch and Batman is somewhat expected, for they both hold     #
+#  high positions at the Boston headquarter (Partner and high-ranking  #
+#  Managing Consultant, respectively).  Using the community detection  # 
+#  algorithms of "edge.betweenness.community" and                      #
+#  "leading.eigenvector.community", we can further confirm that        #
+#  Batman and Human Torch are similar in terms of rank and location    # 
+#  and belong to the same community.                                   #
+#                                                                      #
+#  However, the popularity of Invisible Woman is an interesting        #
+#  discovery.  This person is only a Junior Consultant based in Oslo,  #
+#  Norway, but she seems to be "frequently" passing around advice      # 
+#  at the firm (one of the highest Eingenvector derived from           #
+#  "FreqOfAdvice" at 0.82).  Her advice does not seem highly "valuable"# 
+#  though (the Eingenvector derived from "ValueOfAdvice" at 0.72).     #
+#  This makes sense given her lower organizational level.  Then,       #
+#  we wonder, do the employees who give frequent advice also tend      # 
+#  to give valuable advice?  Is Invisible Woman a typical case at the  # 
+#  company or an exception to the rule?                                #
+#                                                                      #   
+#  Therefore, we use "FreqOfAdvice" as the independent variable and    #
+#  "ValueOfAdvice".  as the dependent variable to conduct a logistic   # 
+#  regression.  While the global P-Vlaue implies statistical           #
+#  significance of the model, the low Pseudo R^2 (~6%), high false     # 
+#  positive rate (~35%), and high false negative rate (~47%) all       #
+#  indicate low explanatory power of the model.  The Invisible Woman   # 
+#  is a typical case at the company - An employee who gives frequent   # 
+#  advice does not necessarily give valuable advice.                   #
+#                                                                      #
+#  References:                                                         #
+#                                                                      #
+#  1.  The Network 8-11: Intra-organisational networks                 #
+#  https://toreopsahl.com/datasets/                                    #
+#======================================================================#
+
+# Load Input Datasets
+
+setwd("C:\\Users\\choen\\Documents\\MSBA_16_17\\DNSC6215_SocialNetwork\\Final Project")
+
+FreqOfAdvice<-read.csv("Input_FreqOfAdvice.csv",header=FALSE)
+head(FreqOfAdvice)
+
+ValueOfAdvice<-read.csv("Input_ValueOfAdvice.csv",header=FALSE)
+head(ValueOfAdvice)
+
+ListOfVertices<-read.csv("Input_Vertices.csv",header=FALSE)
+head(ListOfVertices)
+
+# Plot Basic Network Graphs
+
+library(igraph)
+
+Freq_of_Advice<-graph_from_data_frame(FreqOfAdvice,directed=TRUE,vertices=NULL) 
+Freq_of_Advice
+pdf("Freq_Of_Advice.pdf")
+plot(Freq_of_Advice)
+dev.off()
+
+# Centrality Measure
+InFreqOfAdvice<-degree(Freq_of_Advice)
+InFreqOfAdvice
+OutFreqOfAdvice<-degree(Freq_of_Advice,mode='Out')
+OutFreqOfAdvice
+
+# Closeness Measure
+Closeness_FreqOfAdvice<-closeness(Freq_of_Advice)
+Closeness_FreqOfAdvice
+
+# Betweenness Measure
+Betweenness_FreqOfAdvice<-betweenness(Freq_of_Advice)
+Betweenness_FreqOfAdvice
+
+# Eigenvector Measure
+Eigenvector_FreqOfAdvice<-as.directed(Freq_of_Advice)
+EV_FreqOfAdvice<-evcent(Eigenvector_FreqOfAdvice)
+Eigen_FreqOfAdvice<-EV_FreqOfAdvice$vector
+Eigen_FreqOfAdvice
+
+# Binary Adjacency Matrix: FreqOfAdvice
+colnames(FreqOfAdvice)<-c("Node1","Node2","Frequency")
+FreqOfAdviceMatrix<-as.matrix(get.adjacency(graph.data.frame(FreqOfAdvice)))
+g<-graph_from_adjacency_matrix(FreqOfAdviceMatrix,mode="directed")
+g
+
+# Cluster Analysis:
+
+# Clustering Coefficient for FreqOfAdvice
+graphfreq <- graph_from_adjacency_matrix(FreqOfAdviceMatrix, mode = c("directed"), weighted = NULL)
+CCoefficient <- transitivity(graphfreq)
+summary(CCoefficient)
+CCoefficient
+
+# Clustering Coefficient for ValueOfAdvice
+graphfreq <- graph_from_adjacency_matrix(ValueOfAdviceMatrix, mode = c("directed"), weighted = NULL)
+CCoefficient <- transitivity(graphfreq)
+summary(CCoefficient)
+CCoefficient
+
+library(ggdendro)
+
+# cluster based on Org_level
+org_level <- hclust(dist(ListOfVertices[, 2]))
+cluster1<-ggdendrogram(org_level, size = 4, theme_dendro = FALSE, color = "red",ylab="Org_Level")
+pdf("Cluster_of_Level.pdf")
+plot(cluster1)
+dev.off()
+
+# cluster based on Location
+location <- hclust(dist(ListOfVertices[, 5]))
+cluster2<-ggdendrogram(location, size = 4, theme_dendro = FALSE, color = "red")
+pdf("Cluster_of_Location.pdf")
+plot(cluster2)
+dev.off()
+
+# cluster based on Gender
+gender <- hclust(dist(ListOfVertices[, 3]))
+cluster3<-ggdendrogram(gender, size = 4, theme_dendro = FALSE, color = "red")
+pdf("Cluster_of_Gender.pdf")
+plot(cluster3)
+dev.off()
+
+# cluster based on Region
+region <- hclust(dist(ListOfVertices[, 4]))
+cluster4<-ggdendrogram(region, size = 4, theme_dendro = FALSE, color = "red")
+pdf("Cluster_of_Region.pdf")
+plot(cluster4)
+dev.off()
+
+# Cluster based on Gender and Org_Level
+gender_level <- hclust(dist(ListOfVertices[, 2:3]))
+cluster5<-ggdendrogram(gender_level, size = 4, theme_dendro = FALSE, color = "red")
+pdf("Cluster_of_Gender_and_level.pdf")
+plot(cluster5)
+dev.off()
+
+# Cluster based on Gender, Org_Level, Region, Location
+allattr <- hclust(dist(ListOfVertices[, 2:5]))
+cluster6<-ggdendrogram(gender_level, size = 4, theme_dendro = FALSE, color = "red")
+pdf("Cluster_of_all_attr.pdf")
+plot(cluster6)
+dev.off()
+
+# Communities for FreqOfAdvice
+
+adjm_Freq<-as.matrix(get.adjacency(graph.data.frame(FreqOfAdvice)))
+adjm_Freq
+adjm_Freq<-graph_from_adjacency_matrix(adjm_Freq)
+
+set.seed(1122)
+eb <- edge.betweenness.community(adjm_Freq)
+pdf("Edge_betweeness_community.pdf")
+plot (eb,adjm_Freq)
+dev.off()
+
+set.seed(1122)
+ev <- leading.eigenvector.community(adjm_Freq)
+pdf("Leading_eigenvector_community.pdf")
+plot (ev,adjm_Freq)
+dev.off()
+
+# Communities for ValueOfAdvice
+
+adjm_Val<-as.matrix(get.adjacency(graph.data.frame(ValueOfAdvice)))
+adjm_Val
+adjm_Val<-graph_from_adjacency_matrix(adjm_Val)
+
+set.seed(1122)
+eb2 <- edge.betweenness.community(adjm_Val)
+pdf("Edge_betweeness_community_VoA.pdf")
+plot (eb2,adjm_Val)
+dev.off()
+
+set.seed(1122)
+ev2 <- leading.eigenvector.community(adjm_Val)
+pdf("Leading_eigenvector_community_VoA.pdf")
+plot (ev2,adjm_Val)
+dev.off()
