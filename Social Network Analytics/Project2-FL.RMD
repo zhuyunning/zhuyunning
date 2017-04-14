@@ -1,0 +1,237 @@
+---
+title: "Project2-FL"
+author: "Yunning Zhu"
+date: "March 9, 2017"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(igraph)
+library(ergm)
+```
+
+```{r, echo=FALSE}
+# Set the path or working directory
+wd <- "/home/zhuyunning/Downloads/Social"
+setwd(wd)
+```
+
+```{r, echo=FALSE}
+###FL Send and Receive 2015
+FLsend2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/FL_send_2015.csv",header=TRUE,row.names = 1, sep = ","))
+FLreceive2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/FL_receive_2015.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+FLsend2015[is.na(FLsend2015)] <- 0
+FLreceive2015[is.na(FLreceive2015)] <- 0
+#combine Send and Receive matrix
+FLcbind2015<-FLsend2015+FLreceive2015
+# Create a binary adjacancy matrix
+FLcbind2015[FLcbind2015 < 3] <- 0
+FLcbind2015[FLcbind2015 >= 3] <- 1
+diag(FLcbind2015) <- 0
+# get network plot
+FLcbindgraph2015 <- graph_from_adjacency_matrix(FLcbind2015)
+plot(FLcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### FL attribute 2015
+FLatr2015 <- read.csv("/home/zhuyunning/Downloads/Social/data2015/FL_attr_2015.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+FLatr2015$CancerCD[is.na(FLatr2015$CancerCD)] <- 3
+FLatr2015$lab[FLatr2015$CancerCD == 1] <- 'Ca'
+FLatr2015$lab[FLatr2015$CancerCD == 2] <- 'Cd'
+FLatr2015$lab[FLatr2015$CancerCD == 3] <- 'Dk'
+V(FLcbindgraph2015)$CancerCD <- FLatr2015$CancerCD
+#get new plot
+color <- c("blue", "green", "pink")
+plot(FLcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(FLcbindgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# FL 2015 network description
+#density
+ecount(FLcbindgraph2015)/(vcount(FLcbindgraph2015)*(vcount(FLcbindgraph2015)-1)) #This is the density value 0.05347594, which can be compared with year 2016.
+#reciprocity
+reciprocity(FLcbindgraph2015)
+dyad_census(FLcbindgraph2015)
+2*dyad_census(FLcbindgraph2015)$mut/ecount(FLcbindgraph2015) #reciprocity is 0.8, it's the proportion of reciprocated ties for this network.
+#degree
+FLcbinddegree2015 <- degree(FLcbindgraph2015, mode ='all') #so we can see the top 3 nodes with highest total degree are FL6 FL25 FL4.
+plot(FLcbindgraph2015, vertex.size = 4+0.5*FLcbinddegree2015, edge.arrow.size=.3,vertex.color=color[V(FLcbindgraph2015)$CancerCD]) #from the plot we can see group Ca of CancerCD(blue nodes) tend to have the higher degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(FLcbindgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.03377716.
+centr_eigen(FLcbindgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.8023575.
+centr_betw(FLcbindgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1148703.
+```
+
+```{r, echo=FALSE}
+# FL Combined 2015 ERGM
+library(intergraph)
+FLcbindnet2015<-asNetwork(FLcbindgraph2015)
+FLcbind2015ergm<-ergm(FLcbindnet2015~edges+nodematch("CancerCD", diff=T))  
+summary(FLcbind2015ergm)
+# The resulting edge parameter is -4.0576, which is the log of the edge odds, the corresponding probability is 0.01699659: exp(-4.0576)/(1+exp(-4.0576)) 
+# The parameter of CancerCD.1 is 3.2466 and the probability is 0.9625507.
+# The parameter of CancerCD.2 is -Inf
+# The parameter of CancerCD.3 is -Inf
+# It's might because that there are very few nodes in the 2 categories, and form no within-group ties. The empty cells are what produce the -Inf estimates.
+```
+
+```{r, echo=FALSE}
+###FL Send and Receive 2016
+FLsend2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/FL_send_2016.csv",header=TRUE,row.names = 1, sep = ","))
+FLreceive2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/FL_receive_2016.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+FLsend2016[is.na(FLsend2016)] <- 0
+FLreceive2016[is.na(FLreceive2016)] <- 0
+#combine Send and Receive matrix
+FLcbind2016<-FLsend2016+FLreceive2016
+# Create a binary adjacancy matrix
+FLcbind2016[FLcbind2016 < 3] <- 0
+FLcbind2016[FLcbind2016 >= 3] <- 1
+diag(FLcbind2016) <- 0
+# get network plot
+FLcbindgraph2016 <- graph_from_adjacency_matrix(FLcbind2016)
+plot(FLcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### FL attribute 2016
+FLatr2016 <- read.csv("/home/zhuyunning/Downloads/Social/data2016/FL_attr_2016.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+FLatr2016$CancerCD[is.na(FLatr2016$CancerCD)] <- 3
+FLatr2016$lab[FLatr2016$CancerCD == 1] <- 'Ca'
+FLatr2016$lab[FLatr2016$CancerCD == 2] <- 'Cd'
+FLatr2016$lab[FLatr2016$CancerCD == 3] <- 'Dk'
+V(FLcbindgraph2016)$CancerCD <- FLatr2016$CancerCD
+# get new plot
+color <- c("blue", "green", "pink")
+plot(FLcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(FLcbindgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# FL 2016 network description
+#density
+ecount(FLcbindgraph2016)/(vcount(FLcbindgraph2016)*(vcount(FLcbindgraph2016)-1)) #This is the density value 0.1176471, which can be compared with year 2015.
+#reciprocity
+reciprocity(FLcbindgraph2016)
+dyad_census(FLcbindgraph2016)
+2*dyad_census(FLcbindgraph2016)$mut/ecount(FLcbindgraph2016) #reciprocity is 0.6212121, it's the proportion of reciprocated ties for this network.
+#degree
+FLcbinddegree2016 <- degree(FLcbindgraph2016, mode ='all')
+FLcbinddegree2016 #so we can see the top 3 nodes with highest total degree are FL51 FL1 FL6.
+plot(FLcbindgraph2016, vertex.size = 4+0.5*FLcbinddegree2016, edge.arrow.size=.3,vertex.color=color[V(FLcbindgraph2016)$CancerCD]) #from the plot we can see group Ca of CancerCD(blue nodes) tend to have the higher degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(FLcbindgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.05921311.
+centr_eigen(FLcbindgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.6529143.
+centr_betw(FLcbindgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1457559.
+```
+
+```{r, echo=FALSE}
+# FL Combined 2016 ERGM
+FLcbindnet2016<-asNetwork(FLcbindgraph2016)
+FLcbind2016ergm<-ergm(FLcbindnet2016~edges+nodematch("CancerCD", diff=T))  
+summary(FLcbind2016ergm)
+# The resulting edge parameter is -2.2280, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.09726411: exp(-2.2280)/(1+exp(-2.2280)) 
+# The parameter of CancerCD.1 is 2.3372 and the probability is 0.9119114.
+# The parameter of CancerCD.2 is 1.1294 and the probability is 0.7557282.
+# The parameter of CancerCD.3 is -1.6402 and the probability is 0.1624379.
+```
+
+```{r, echo=FALSE}
+### FL how do you know 2015
+FLhow2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/FL_how_2015.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+FLhow2015[is.na(FLhow2015)] <- 0
+# Create a binary adjacancy matrix
+FLhow2015[FLhow2015 < 3] <- 0
+FLhow2015[FLhow2015 >= 3] <- 1
+diag(FLhow2015) <- 0
+# get network plot
+FLhowgraph2015 <- graph_from_adjacency_matrix(FLhow2015)
+plot(FLhowgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2015
+V(FLhowgraph2015)$CancerCD <- FLatr2015$CancerCD
+# get new plot
+plot(FLhowgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(FLhowgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# FL how do you know 2015 network description
+#density
+ecount(FLhowgraph2015)/(vcount(FLhowgraph2015)*(vcount(FLhowgraph2015)-1)) #This is the density value 0.09803922, which can be compared with year 2016.
+#reciprocity
+reciprocity(FLhowgraph2015)
+dyad_census(FLhowgraph2015)
+2*dyad_census(FLhowgraph2015)$mut/ecount(FLhowgraph2015) #reciprocity is 0.5272727, it's the proportion of reciprocated ties for this network.
+#degree
+FLhowdegree2015 <- degree(FLhowgraph2015,mode='all') #so we can see the top 3 nodes with highest total degree are FL6 FL18 FL25.
+plot(FLhowgraph2015, vertex.size = 4+0.5*FLhowdegree2015, edge.arrow.size=.3,vertex.color=color[V(FLhowgraph2015)$CancerCD]) #from the plot we can see group Ca of CancerCD(blue nodes) tend to have the higher degree and also a green node from group Cd.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(FLhowgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.06038159.
+centr_eigen(FLhowgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.7824213.
+centr_betw(FLhowgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.159529.
+```
+
+```{r, echo=FALSE}
+# FL how do you know 2015 ERGM
+FLhownet2015<-asNetwork(FLhowgraph2015)
+FLhow2015ergm<-ergm(FLhownet2015~edges)  
+summary(FLhow2015ergm)
+# The resulting edge parameter is -2.2192, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.09803952: exp(-2.2192)/(1+exp(-2.2192)) 
+```
+
+```{r, echo=FALSE}
+### FL how do you know 2016
+FLhow2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/FL_how_2016.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+FLhow2016[is.na(FLhow2016)] <- 0
+# Create a binary adjacancy matrix
+FLhow2016[FLhow2016 < 3] <- 0
+FLhow2016[FLhow2016 >= 3] <- 1
+diag(FLhow2016) <- 0
+# get network plot
+FLhowgraph2016 <- graph_from_adjacency_matrix(FLhow2016)
+plot(FLhowgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2016
+V(FLhowgraph2016)$CancerCD <- FLatr2016$CancerCD
+# get new plot
+plot(FLhowgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(FLhowgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# FL how do you know 2016 network description
+#density
+ecount(FLhowgraph2016)/(vcount(FLhowgraph2016)*(vcount(FLhowgraph2016)-1)) #This is the density value 0.1327986, which can be compared with year 2015.
+#reciprocity
+reciprocity(FLhowgraph2016)
+dyad_census(FLhowgraph2016)
+2*dyad_census(FLhowgraph2016)$mut/ecount(FLhowgraph2016) #reciprocity is 0.7248322, it's the proportion of reciprocated ties for this network.
+#degree
+FLhowdegree2016 <- degree(FLhowgraph2016,mode='all')
+plot(FLhowgraph2016, vertex.size = 4+0.5*FLhowdegree2016, edge.arrow.size=.3,vertex.color=color[V(FLhowgraph2016)$CancerCD]) #from the plot we can see group Ca of CancerCD(blue nodes) tend to have the higher degree and also a few pink and green nodes.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(FLhowgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.05817914.
+centr_eigen(FLhowgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.6302305.
+centr_betw(FLhowgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1405003.
+```
+
+```{r, echo=FALSE}
+# FL how do you know 2016 ERGM
+FLhownet2016<-asNetwork(FLhowgraph2016)
+FLhow2016ergm<-ergm(FLhownet2016~edges)  
+summary(FLhow2016ergm)
+# The resulting edge parameter is -1.87644, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.1327983: exp(-1.87644)/(1+exp(-1.87644)) 
+```
+
+
