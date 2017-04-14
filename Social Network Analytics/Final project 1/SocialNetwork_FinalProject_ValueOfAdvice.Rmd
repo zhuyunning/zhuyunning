@@ -1,0 +1,169 @@
+#======================================================================#
+#                                                                      #
+#  Social Network Analytics Final Project Programming File 2           #
+#  Centrality Measures for ValueOfAdvice, ERGM, and Regression         #
+#                                                                      #
+#  Who demonstrates true leadership in terms of giving                 #
+#  frequent and valuable advice at Superhero Consulting LLC?           #
+#                                                                      #
+#  Group Members:  Daniel Chen, Sara Kalwar, Hegi Wang, Yunning Zhu    #
+#                                                                      #
+#  Input Datasets:  FreqOfAdvice, ValueOfAdvice, ListOfVertices        #
+#                                                                      #
+#  Executive Summary:                                                  #
+#                                                                      #
+#  Our project examines the intra-organizational network of            #
+#  46-employee consulting firm.  For confidential purposes, we have    # 
+#  renamed the company to Superhero Consulting LLC and replaced the    # 
+#  employee names with Marvel superhero aliases.  We have 3            #
+#  datasets: (1) "FreqOfAdvice", in which the ties are differentiated  # 
+#  on a scale from 0 to 5 in terms of frequency of information or      #
+#  advice requests (5 being the most frequent); (2) "ValueOfAdvice",   # 
+#  in which the ties are differentiated in terms of the value placed   # 
+#  on the information or advice received (5 being the strongest);      # 
+#  (3) "ListOfVertices", in which nodal attributes such as             #
+#  Organizational Level, Gender, Region, and Location are provided.    #
+#                                                                      #
+#  Our main objective is to determine who demonstrates true            #
+#  leadership at Superhero Consulting LLC in terms of giving frequent  # 
+#  AND valuable advice.  Based on the centrality measures of both      # 
+#  the frequency and valuableness datasets, 3 persons (or 3            # 
+#  characters) stand out:  (1) Batman; (2) Human Torch; (3)            # 
+#  Invisible Woman.  Batman and Human Torch seem to be the most        #
+#  respected and have the highest network importance while Invisible   # 
+#  Woman, being the most reachable and popular, is also the bridge     # 
+#  that connects the cliques in the network.  The importance of        #   
+#  Human Torch and Batman is somewhat expected, for they both hold     #
+#  high positions at the Boston headquarter (Partner and high-ranking  #
+#  Managing Consultant, respectively).  Using the community detection  # 
+#  algorithms of "edge.betweenness.community" and                      #
+#  "leading.eigenvector.community", we can further confirm that        #
+#  Batman and Human Torch are similar in terms of rank and location    # 
+#  and belong to the same community.                                   #
+#                                                                      #
+#  However, the popularity of Invisible Woman is an interesting        #
+#  discovery.  This person is only a Junior Consultant based in Oslo,  #
+#  Norway, but she seems to be "frequently" passing around advice      # 
+#  at the firm (one of the highest Eingenvector derived from           #
+#  "FreqOfAdvice" at 0.82).  Her advice does not seem highly "valuable"# 
+#  though (the Eingenvector derived from "ValueOfAdvice" at 0.72).     #
+#  This makes sense given her lower organizational level.  Then,       #
+#  we wonder, do the employees who give frequent advice also tend      # 
+#  to give valuable advice?  Is Invisible Woman a typical case at the  # 
+#  company or an exception to the rule?                                #
+#                                                                      #   
+#  Therefore, we use "FreqOfAdvice" as the independent variable and    #
+#  "ValueOfAdvice".  as the dependent variable to conduct a logistic   # 
+#  regression.  While the global P-Vlaue implies statistical           #
+#  significance of the model, the low Pseudo R^2 (~6%), high false     # 
+#  positive rate (~35%), and high false negative rate (~47%) all       #
+#  indicate low explanatory power of the model.  The Invisible Woman   # 
+#  is a typical case at the company - An employee who gives frequent   # 
+#  advice does not necessarily give valuable advice.                   #
+#                                                                      #
+#  References:                                                         #
+#                                                                      #
+#  1.  The Network 8-11: Intra-organisational networks                 #
+#  https://toreopsahl.com/datasets/                                    #
+#======================================================================#
+
+# Load Input Datasets
+
+setwd("C:\\Users\\choen\\Documents\\MSBA_16_17\\DNSC6215_SocialNetwork\\Final Project")
+
+ValueOfAdvice<-read.csv("Input_ValueOfAdvice.csv",header=FALSE)
+head(ValueOfAdvice)
+
+FreqOfAdvice<-read.csv("Input_FreqOfAdvice.csv",header=FALSE)
+head(FreqOfAdvice)
+
+ListOfVertices<-read.csv("Input_Vertices.csv",header=FALSE)
+head(ListOfVertices)
+
+# Plot Basic Network Graph
+
+library(igraph)
+
+Value_of_Advice<-graph_from_data_frame(ValueOfAdvice,directed=TRUE,vertices=NULL) 
+Value_of_Advice
+pdf("Value_Of_Advice.pdf")
+plot(Value_of_Advice)
+dev.off()
+
+# Centrality Measures:  In-Degree & Out-Degreee
+InValueOfAdvice<-degree(Value_of_Advice,mode='in')
+InValueOfAdvice
+OutValueOfAdvice<-degree(Value_of_Advice,mode='Out')
+OutValueOfAdvice
+
+# Centrality Measures:  Closeness
+Closeness_ValueOfAdvice<-closeness(Value_of_Advice)
+Closeness_ValueOfAdvice
+
+# Centrality Measures:  Betweenness
+Betweenness_ValueOfAdvice<-betweenness(Value_of_Advice)
+Betweenness_ValueOfAdvice
+
+# Centrality Measures:  Eigenvector
+Eigenvector_ValueOfAdvice<-as.directed(Value_of_Advice)
+EV_ValueOfAdvice<-evcent(Eigenvector_ValueOfAdvice)
+Eigen_ValueOfAdvice<-EV_ValueOfAdvice$vector
+Eigen_ValueOfAdvice
+
+# Binary Adjacency Matrix: FreqOfAdvice
+colnames(FreqOfAdvice)<-c("Node1","Node2","Frequency")
+FreqOfAdviceMatrix<-as.matrix(get.adjacency(graph.data.frame(FreqOfAdvice)))
+g<-graph_from_adjacency_matrix(FreqOfAdviceMatrix,mode="directed")
+g
+
+# Binary Adjacency Matrix: ValueOfAdvice
+colnames(ValueOfAdvice)<-c("Node1","Node2","Value")
+ValueOfAdviceMatrix<-as.matrix(get.adjacency(graph.data.frame(ValueOfAdvice)))
+g<-graph_from_adjacency_matrix(ValueOfAdviceMatrix,mode="directed")
+g
+
+# Correlation between FreqOfAdvice and ValueOfAdvice
+library(sna)
+
+#empty slices 
+g<-array(dim=c(2,46,46))
+
+#fill the first slice with FreqOfAdviceMatrix
+g[1,,]<-FreqOfAdviceMatrix
+
+#fill the second slice with ValueOfAdviceMatrix
+g[2,,]<-ValueOfAdviceMatrix
+
+#Perform qap tests of graph correlation
+corr <- qaptest(g,gcor,g1=1,g2=2)
+summary(corr)
+
+# ERGM:  ValueOfAdvice, Density Only (Edge Term)
+
+library(ergm)
+ERGM_ValueOfAdvice_1<-ergm(ValueOfAdviceMatrix~edges)  
+ERGM_ValueOfAdvice_1
+summary(ERGM_ValueOfAdvice_1)
+# The resulting edge parameter is -0.3514, which is the log of the edge odds
+# The corresponding probability is 0.413:
+exp(-0.3514)/(1+exp(-0.3514)) 
+
+# ERGM:  FreqOfAdvice, Density Only (Edge Term)
+
+ERGM_FreqOfAdvice_1<-ergm(FreqOfAdviceMatrix~edges)  
+ERGM_FreqOfAdvice_1
+summary(ERGM_FreqOfAdvice_1)
+# The resulting edge parameter is -0.3077, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.424:
+exp(-0.3077)/(1+exp(-0.3077)) 
+
+# Logistic Regression:  ValueOfAdvice is the IV and FreqOfAdvice is the DV
+
+library(sna)
+nl1<-netlogit(FreqOfAdviceMatrix,ValueOfAdviceMatrix,reps=2000)
+summary(nl1)
+
+# Logistic Regression:  FreqOfAdvice is the IV and ValueOfAdvice is the DV
+
+nl2<-netlogit(ValueOfAdviceMatrix,FreqOfAdviceMatrix,reps=2000)
+summary(nl2)
