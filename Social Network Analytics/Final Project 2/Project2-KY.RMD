@@ -1,0 +1,238 @@
+---
+title: "Project2-KY"
+author: "Yunning Zhu"
+date: "March 9, 2017"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(igraph)
+library(ergm)
+```
+
+```{r, echo=FALSE}
+# Set the path or working directory
+wd <- "/home/zhuyunning/Downloads/Social"
+setwd(wd)
+```
+
+```{r, echo=FALSE}
+###KY Send and Receive 2015
+KYsend2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_KY Send info.csv",header=TRUE,row.names = 1, sep = ","))
+KYreceive2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_KY Receive info.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+KYsend2015[is.na(KYsend2015)] <- 0
+KYreceive2015[is.na(KYreceive2015)] <- 0
+#combine Send and Receive matrix
+KYcbind2015<-KYsend2015+KYreceive2015
+# Create a binary adjacancy matrix
+KYcbind2015[KYcbind2015 < 3] <- 0
+KYcbind2015[KYcbind2015 >= 3] <- 1
+diag(KYcbind2015) <- 0
+# get network plot
+KYcbindgraph2015 <- graph_from_adjacency_matrix(KYcbind2015)
+plot(KYcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### KY attribute 2015
+KYatr2015 <- read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_101116_KY Attributes.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+KYatr2015$CancerCD[is.na(KYatr2015$CancerCD)] <- 3
+KYatr2015$CancerCD[KYatr2015$CancerCD==0] <- 3
+KYatr2015$lab[KYatr2015$CancerCD == 1] <- 'Ca'
+KYatr2015$lab[KYatr2015$CancerCD == 2] <- 'Cd'
+KYatr2015$lab[KYatr2015$CancerCD == 3] <- 'Dk'
+V(KYcbindgraph2015)$CancerCD <- KYatr2015$CancerCD
+#get new plot
+color <- c("blue", "green", "pink")
+plot(KYcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(KYcbindgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# KY 2015 network description
+#density
+ecount(KYcbindgraph2015)/(vcount(KYcbindgraph2015)*(vcount(KYcbindgraph2015)-1)) #This is the density value 0.04098361, which can be compared with year 2016.
+#reciprocity
+reciprocity(KYcbindgraph2015)
+dyad_census(KYcbindgraph2015)
+2*dyad_census(KYcbindgraph2015)$mut/ecount(KYcbindgraph2015) #reciprocity is 0.4387097, it's the proportion of reciprocated ties for this network.
+#degree
+KYcbinddegree2015 <- degree(KYcbindgraph2015, mode ='all') 
+plot(KYcbindgraph2015, vertex.size = 4+0.5*KYcbinddegree2015, edge.arrow.size=.3,vertex.color=color[V(KYcbindgraph2015)$CancerCD]) #from the plot we can see a big green node from group Cd has a high degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(KYcbindgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.02099296.
+centr_eigen(KYcbindgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.8138593.
+centr_betw(KYcbindgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.06659276.
+```
+
+```{r, echo=FALSE}
+# KY Combined 2015 ERGM
+library(intergraph)
+KYcbindnet2015<-asNetwork(KYcbindgraph2015)
+KYcbind2015ergm<-ergm(KYcbindnet2015~edges+nodematch("CancerCD", diff=T))  
+summary(KYcbind2015ergm)
+# The resulting edge parameter is -3.2390, which is the log of the edge odds, the corresponding probability is 0.03772417: exp(-3.2390)/(1+exp(-3.2390)) 
+# The parameter of CancerCD.1 is 1.9538, the probability is 0.8758604.
+# The parameter of CancerCD.2 is 0.2945, the probability is 0.5730974.
+# The parameter of CancerCD.3 is -0.7104, the probability is 0.3295105.
+```
+
+```{r, echo=FALSE}
+###KY Send and Receive 2016
+KYsend2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_KY Send info.csv",header=TRUE,row.names = 1, sep = ","))
+KYreceive2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_KY Receive info.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+KYsend2016[is.na(KYsend2016)] <- 0
+KYreceive2016[is.na(KYreceive2016)] <- 0
+#combine Send and Receive matrix
+KYcbind2016<-KYsend2016+KYreceive2016
+# Create a binary adjacancy matrix
+KYcbind2016[KYcbind2016 < 3] <- 0
+KYcbind2016[KYcbind2016 >= 3] <- 1
+diag(KYcbind2016) <- 0
+# get network plot
+KYcbindgraph2016 <- graph_from_adjacency_matrix(KYcbind2016)
+plot(KYcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### KY attribute 2016
+KYatr2016 <- read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_KY Attributes.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+KYatr2016$CancerCD[is.na(KYatr2016$CancerCD)] <- 3
+KYatr2015$CancerCD[KYatr2016$CancerCD==0] <- 3
+KYatr2016$lab[KYatr2016$CancerCD == 1] <- 'Ca'
+KYatr2016$lab[KYatr2016$CancerCD == 2] <- 'Cd'
+KYatr2016$lab[KYatr2016$CancerCD == 3] <- 'Dk'
+V(KYcbindgraph2016)$CancerCD <- KYatr2016$CancerCD
+# get new plot
+color <- c("blue", "green", "pink")
+plot(KYcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(KYcbindgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# KY 2016 network description
+#density
+ecount(KYcbindgraph2016)/(vcount(KYcbindgraph2016)*(vcount(KYcbindgraph2016)-1)) #This is the density value 0.1277778, which can be compared with year 2015.
+#reciprocity
+reciprocity(KYcbindgraph2016)
+dyad_census(KYcbindgraph2016)
+2*dyad_census(KYcbindgraph2016)$mut/ecount(KYcbindgraph2016) #reciprocity is 0.5465839, it's the proportion of reciprocated ties for this network.
+#degree
+KYcbinddegree2016 <- degree(KYcbindgraph2016, mode ='all')
+KYcbinddegree2016 #so we can see the top 3 nodes with highest total degree are KY56 KY11 KY31.
+plot(KYcbindgraph2016, vertex.size = 4+0.5*KYcbinddegree2016, edge.arrow.size=.3,vertex.color=color[V(KYcbindgraph2016)$CancerCD]) #from the plot we can see group Dk of CancerCD(pink nodes) tend to have the higher degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(KYcbindgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.08201232.
+centr_eigen(KYcbindgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.6770147.
+centr_betw(KYcbindgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1077288.
+```
+
+```{r, echo=FALSE}
+# KY Combined 2016 ERGM
+KYcbindnet2016<-asNetwork(KYcbindgraph2016)
+KYcbind2016ergm<-ergm(KYcbindnet2016~edges+nodematch("CancerCD", diff=T))  
+summary(KYcbind2016ergm)
+# The resulting edge parameter is -1.8017, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.1416443: exp(-1.8017)/(1+exp(-1.8017)) 
+# The parameter of CancerCD.1 is 0.9144 and the probability is 0.7138997.
+# The parameter of CancerCD.2 is 0.9544 and the probability is 0.7219992.
+# The parameter of CancerCD.3 is -0.7311 and the probability is 0.3249534.
+```
+
+```{r, echo=FALSE}
+### KY how do you know 2015
+KYhow2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_KY How do you know.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+KYhow2015[is.na(KYhow2015)] <- 0
+# Create a binary adjacancy matrix
+KYhow2015[KYhow2015 < 3] <- 0
+KYhow2015[KYhow2015 >= 3] <- 1
+diag(KYhow2015) <- 0
+# get network plot
+KYhowgraph2015 <- graph_from_adjacency_matrix(KYhow2015)
+plot(KYhowgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2015
+V(KYhowgraph2015)$CancerCD <- KYatr2015$CancerCD
+# get new plot
+plot(KYhowgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(KYhowgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# KY how do you know 2015 network description
+#density
+ecount(KYhowgraph2015)/(vcount(KYhowgraph2015)*(vcount(KYhowgraph2015)-1)) #This is the density value 0.06054997, which can be compared with year 2016.
+#reciprocity
+reciprocity(KYhowgraph2015)
+dyad_census(KYhowgraph2015)
+2*dyad_census(KYhowgraph2015)$mut/ecount(KYhowgraph2015) #reciprocity is 0.419214, it's the proportion of reciprocated ties for this network.
+#degree
+KYhowdegree2015 <- degree(KYhowgraph2015,mode='all') #so we can see the top 3 nodes with highest total degree are KY6 KY18 KY25.
+plot(KYhowgraph2015, vertex.size = 4+0.5*KYhowdegree2015, edge.arrow.size=.3,vertex.color=color[V(KYhowgraph2015)$CancerCD]) #from the plot we can see group Ca of CancerCD(blue nodes) tend to have the higher degree and also pink nodes from group Dk.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(KYhowgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.02435238.
+centr_eigen(KYhowgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.7570716.
+centr_betw(KYhowgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.04924679.
+```
+
+```{r, echo=FALSE}
+# KY how do you know 2015 ERGM
+KYhownet2015<-asNetwork(KYhowgraph2015)
+KYhow2015ergm<-ergm(KYhownet2015~edges)  
+summary(KYhow2015ergm)
+# The resulting edge parameter is -2.74183, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.06054972: exp(-2.74183)/(1+exp(-2.74183)) 
+```
+
+```{r, echo=FALSE}
+### KY how do you know 2016
+KYhow2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_KY how do you know.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+KYhow2016[is.na(KYhow2016)] <- 0
+# Create a binary adjacancy matrix
+KYhow2016[KYhow2016 < 3] <- 0
+KYhow2016[KYhow2016 >= 3] <- 1
+diag(KYhow2016) <- 0
+# get network plot
+KYhowgraph2016 <- graph_from_adjacency_matrix(KYhow2016)
+plot(KYhowgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2016
+V(KYhowgraph2016)$CancerCD <- KYatr2016$CancerCD
+# get new plot
+plot(KYhowgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(KYhowgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# KY how do you know 2016 network description
+#density
+ecount(KYhowgraph2016)/(vcount(KYhowgraph2016)*(vcount(KYhowgraph2016)-1)) #This is the density value 0.1444444, which can be compared with year 2015.
+#reciprocity
+reciprocity(KYhowgraph2016)
+dyad_census(KYhowgraph2016)
+2*dyad_census(KYhowgraph2016)$mut/ecount(KYhowgraph2016) #reciprocity is 0.5824176, it's the proportion of reciprocated ties for this network.
+#degree
+KYhowdegree2016 <- degree(KYhowgraph2016,mode='all')
+plot(KYhowgraph2016, vertex.size = 4+0.5*KYhowdegree2016, edge.arrow.size=.3,vertex.color=color[V(KYhowgraph2016)$CancerCD]) #from the plot we can see group Ca and Dk of CancerCD(blue and pink nodes) tend to have the higher degree and also a few green nodes.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(KYhowgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.08125356.
+centr_eigen(KYhowgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.6158726.
+centr_betw(KYhowgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1026685.
+```
+
+```{r, echo=FALSE}
+# KY how do you know 2016 ERGM
+KYhownet2016<-asNetwork(KYhowgraph2016)
+KYhow2016ergm<-ergm(KYhownet2016~edges)  
+summary(KYhow2016ergm)
+# The resulting edge parameter is -1.77886, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.144444: exp(-1.87644)/(1+exp(-1.87644)) 
+```
+
+

@@ -1,0 +1,238 @@
+---
+title: "Project2-SD"
+author: "Yunning Zhu"
+date: "March 9, 2017"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(igraph)
+library(ergm)
+```
+
+```{r, echo=FALSE}
+# Set the path or working directory
+wd <- "/home/zhuyunning/Downloads/Social"
+setwd(wd)
+```
+
+```{r, echo=FALSE}
+###SD Send and Receive 2015
+SDsend2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_SD Send info.csv",header=TRUE,row.names = 1, sep = ","))
+SDreceive2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_SD Receive info.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+SDsend2015[is.na(SDsend2015)] <- 0
+SDreceive2015[is.na(SDreceive2015)] <- 0
+#combine Send and Receive matrix
+SDcbind2015<-SDsend2015+SDreceive2015
+# Create a binary adjacancy matrix
+SDcbind2015[SDcbind2015 < 3] <- 0
+SDcbind2015[SDcbind2015 >= 3] <- 1
+diag(SDcbind2015) <- 0
+# get network plot
+SDcbindgraph2015 <- graph_from_adjacency_matrix(SDcbind2015)
+plot(SDcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### SD attribute 2015
+SDatr2015 <- read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_101116_SD Attributes.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+SDatr2015$CancerCD[is.na(SDatr2015$CancerCD)] <- 3
+SDatr2015$CancerCD[SDatr2015$CancerCD==0] <- 3
+SDatr2015$lab[SDatr2015$CancerCD == 1] <- 'Ca'
+SDatr2015$lab[SDatr2015$CancerCD == 2] <- 'Cd'
+SDatr2015$lab[SDatr2015$CancerCD == 3] <- 'Dk'
+V(SDcbindgraph2015)$CancerCD <- SDatr2015$CancerCD
+#get new plot
+color <- c("blue", "green", "pink")
+plot(SDcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(SDcbindgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# SD 2015 network description
+#density
+ecount(SDcbindgraph2015)/(vcount(SDcbindgraph2015)*(vcount(SDcbindgraph2015)-1)) #This is the density value 0.2904762, which can be compared with year 2016.
+#reciprocity
+reciprocity(SDcbindgraph2015)
+dyad_census(SDcbindgraph2015)
+2*dyad_census(SDcbindgraph2015)$mut/ecount(SDcbindgraph2015) #reciprocity is 0.6065574, it's the proportion of reciprocated ties for this network.
+#degree
+SDcbinddegree2015 <- degree(SDcbindgraph2015, mode ='all') 
+plot(SDcbindgraph2015, vertex.size = 4+0.5*SDcbinddegree2015, edge.arrow.size=.3,vertex.color=color[V(SDcbindgraph2015)$CancerCD]) #from the plot we can see a big green node from group Cd has a high degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(SDcbindgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.1085468.
+centr_eigen(SDcbindgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.5421876.
+centr_betw(SDcbindgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.08902961.
+```
+
+```{r, echo=FALSE}
+# SD Combined 2015 ERGM
+library(intergraph)
+SDcbindnet2015<-asNetwork(SDcbindgraph2015)
+SDcbind2015ergm<-ergm(SDcbindnet2015~edges+nodematch("CancerCD", diff=T))  
+summary(SDcbind2015ergm)
+# The resulting edge parameter is -1.5261, which is the log of the edge odds, the corresponding probability is 0.178565.
+# The parameter of CancerCD.1 is 0.6788, the probability is 0.6634708.
+# The parameter of CancerCD.2 is 2.4268, the probability is 0.9188482.
+# The parameter of CancerCD.3 is -1.1130, the probability is 0.247312.
+```
+
+```{r, echo=FALSE}
+###SD Send and Receive 2016
+SDsend2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_SD Send info.csv",header=TRUE,row.names = 1, sep = ","))
+SDreceive2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_SD Receive info.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+SDsend2016[is.na(SDsend2016)] <- 0
+SDreceive2016[is.na(SDreceive2016)] <- 0
+#combine Send and Receive matrix
+SDcbind2016<-SDsend2016+SDreceive2016
+# Create a binary adjacancy matrix
+SDcbind2016[SDcbind2016 < 3] <- 0
+SDcbind2016[SDcbind2016 >= 3] <- 1
+diag(SDcbind2016) <- 0
+# get network plot
+SDcbindgraph2016 <- graph_from_adjacency_matrix(SDcbind2016)
+plot(SDcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### SD attribute 2016
+SDatr2016 <- read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_SD Attributes.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+SDatr2016$CancerCD[is.na(SDatr2016$CancerCD)] <- 3
+SDatr2016$CancerCD[SDatr2016$CancerCD==0] <- 3
+SDatr2016$lab[SDatr2016$CancerCD == 1] <- 'Ca'
+SDatr2016$lab[SDatr2016$CancerCD == 2] <- 'Cd'
+SDatr2016$lab[SDatr2016$CancerCD == 3] <- 'Dk'
+V(SDcbindgraph2016)$CancerCD <- SDatr2016$CancerCD
+# get new plot
+color <- c("blue", "green", "pink")
+plot(SDcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(SDcbindgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# SD 2016 network description
+#density
+ecount(SDcbindgraph2016)/(vcount(SDcbindgraph2016)*(vcount(SDcbindgraph2016)-1)) #This is the density value 0.1580087, which can be compared with year 2015.
+#reciprocity
+reciprocity(SDcbindgraph2016)
+dyad_census(SDcbindgraph2016)
+2*dyad_census(SDcbindgraph2016)$mut/ecount(SDcbindgraph2016) #reciprocity is 0.5479452, it's the proportion of reciprocated ties for this network.
+#degree
+SDcbinddegree2016 <- degree(SDcbindgraph2016, mode ='all')
+SDcbinddegree2016 #so we can see the top 3 nodes with highest total degree are SD15 SD10 SD28.
+plot(SDcbindgraph2016, vertex.size = 4+0.5*SDcbinddegree2016, edge.arrow.size=.3,vertex.color=color[V(SDcbindgraph2016)$CancerCD]) #from the plot we can see group Ca and Cd tend to have the higher degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(SDcbindgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.2280338.
+centr_eigen(SDcbindgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.5959614.
+centr_betw(SDcbindgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1356576.
+```
+
+```{r, echo=FALSE}
+# SD Combined 2016 ERGM
+SDcbindnet2016<-asNetwork(SDcbindgraph2016)
+SDcbind2016ergm<-ergm(SDcbindnet2016~edges+nodematch("CancerCD", diff=T))  
+summary(SDcbind2016ergm)
+# The resulting edge parameter is -1.8556, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.1352167.
+# The parameter of CancerCD.1 is 1.4501 and the probability is 0.8100138.
+# The parameter of CancerCD.2 is 1.5679 and the probability is 0.827484.
+# The parameter of CancerCD.3 is -Inf.
+```
+
+```{r, echo=FALSE}
+### SD how do you know 2015
+SDhow2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_SD How do you know.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+SDhow2015[is.na(SDhow2015)] <- 0
+# Create a binary adjacancy matrix
+SDhow2015[SDhow2015 < 3] <- 0
+SDhow2015[SDhow2015 >= 3] <- 1
+diag(SDhow2015) <- 0
+# get network plot
+SDhowgraph2015 <- graph_from_adjacency_matrix(SDhow2015)
+plot(SDhowgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2015
+V(SDhowgraph2015)$CancerCD <- SDatr2015$CancerCD
+# get new plot
+plot(SDhowgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(SDhowgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# SD how do you know 2015 network description
+#density
+ecount(SDhowgraph2015)/(vcount(SDhowgraph2015)*(vcount(SDhowgraph2015)-1)) #This is the density value 0.3238095, which can be compared with year 2016.
+#reciprocity
+reciprocity(SDhowgraph2015)
+dyad_census(SDhowgraph2015)
+2*dyad_census(SDhowgraph2015)$mut/ecount(SDhowgraph2015) #reciprocity is 0.8235294, it's the proportion of reciprocated ties for this network.
+#degree
+SDhowdegree2015 <- degree(SDhowgraph2015,mode='all')
+plot(SDhowgraph2015, vertex.size = 4+0.5*SDhowdegree2015, edge.arrow.size=.3,vertex.color=color[V(SDhowgraph2015)$CancerCD]) #from the plot we can see group Cd of CancerCD(green nodes) tend to have the higher degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(SDhowgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.4456734.
+centr_eigen(SDhowgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.4915098.
+centr_betw(SDhowgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.0714375.
+```
+
+```{r, echo=FALSE}
+# SD how do you know 2015 ERGM
+SDhownet2015<-asNetwork(SDhowgraph2015)
+SDhow2015ergm<-ergm(SDhownet2015~edges)  
+summary(SDhow2015ergm)
+# The resulting edge parameter is -0.7363, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.3238138: exp(-0.7363)/(1+exp(-0.7363)) 
+```
+
+```{r, echo=FALSE}
+### SD how do you know 2016
+SDhow2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_SD how do you know.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+SDhow2016[is.na(SDhow2016)] <- 0
+# Create a binary adjacancy matrix
+SDhow2016[SDhow2016 < 3] <- 0
+SDhow2016[SDhow2016 >= 3] <- 1
+diag(SDhow2016) <- 0
+# get network plot
+SDhowgraph2016 <- graph_from_adjacency_matrix(SDhow2016)
+plot(SDhowgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2016
+V(SDhowgraph2016)$CancerCD <- SDatr2016$CancerCD
+# get new plot
+plot(SDhowgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(SDhowgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# SD how do you know 2016 network description
+#density
+ecount(SDhowgraph2016)/(vcount(SDhowgraph2016)*(vcount(SDhowgraph2016)-1)) #This is the density value 0.2662338, which can be compared with year 2015.
+#reciprocity
+reciprocity(SDhowgraph2016)
+dyad_census(SDhowgraph2016)
+2*dyad_census(SDhowgraph2016)$mut/ecount(SDhowgraph2016) #reciprocity is 0.601626, it's the proportion of reciprocated ties for this network.
+#degree
+SDhowdegree2016 <- degree(SDhowgraph2016,mode='all')
+plot(SDhowgraph2016, vertex.size = 4+0.5*SDhowdegree2016, edge.arrow.size=.3,vertex.color=color[V(SDhowgraph2016)$CancerCD]) #from the plot we can see group Ca and Dk of CancerCD(blue and pink nodes) tend to have the higher degree and also a few green nodes.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(SDhowgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.2262942.
+centr_eigen(SDhowgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.4780866.
+centr_betw(SDhowgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1175378.
+```
+
+```{r, echo=FALSE}
+# SD how do you know 2016 ERGM
+SDhownet2016<-asNetwork(SDhowgraph2016)
+SDhow2016ergm<-ergm(SDhownet2016~edges)  
+summary(SDhow2016ergm)
+# The resulting edge parameter is -1.0138, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.2662368: exp(-1.0138)/(1+exp(-1.0138))
+```
+
+

@@ -1,0 +1,235 @@
+---
+title: "Project2-VT"
+author: "Yunning Zhu"
+date: "March 9, 2017"
+output: html_document
+---
+
+```{r, echo=FALSE}
+library(igraph)
+library(ergm)
+```
+
+```{r, echo=FALSE}
+# Set the path or working directory
+wd <- "/home/zhuyunning/Downloads/Social"
+setwd(wd)
+```
+
+```{r, echo=FALSE}
+###VT Send and Receive 2015
+VTsend2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_VT Send info.csv",header=TRUE,row.names = 1, sep = ","))
+VTreceive2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_VT Receive info.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+VTsend2015[is.na(VTsend2015)] <- 0
+VTreceive2015[is.na(VTreceive2015)] <- 0
+#combine Send and Receive matrix
+VTcbind2015<-VTsend2015+VTreceive2015
+# Create a binary adjacancy matrix
+VTcbind2015[VTcbind2015 < 3] <- 0
+VTcbind2015[VTcbind2015 >= 3] <- 1
+diag(VTcbind2015) <- 0
+# get network plot
+VTcbindgraph2015 <- graph_from_adjacency_matrix(VTcbind2015)
+plot(VTcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### VT attribute 2015
+VTatr2015 <- read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_101116_VT Attributes.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+VTatr2015$CancerCD[is.na(VTatr2015$CancerCD)] <- 3
+VTatr2015$lab[VTatr2015$CancerCD == 1] <- 'Ca'
+VTatr2015$lab[VTatr2015$CancerCD == 2] <- 'Cd'
+VTatr2015$lab[VTatr2015$CancerCD == 3] <- 'Dk'
+V(VTcbindgraph2015)$CancerCD <- VTatr2015$CancerCD
+#get new plot
+color <- c("blue", "green", "pink")
+plot(VTcbindgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(VTcbindgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# VT 2015 network description
+#density
+ecount(VTcbindgraph2015)/(vcount(VTcbindgraph2015)*(vcount(VTcbindgraph2015)-1)) #This is the density value 0.1011494, which can be compared with year 2016.
+#reciprocity
+reciprocity(VTcbindgraph2015)
+dyad_census(VTcbindgraph2015)
+2*dyad_census(VTcbindgraph2015)$mut/ecount(VTcbindgraph2015) #reciprocity is 0.4772727, it's the proportion of reciprocated ties for this network.
+#degree
+VTcbinddegree2015 <- degree(VTcbindgraph2015, mode ='all') 
+plot(VTcbindgraph2015, vertex.size = 4+0.5*VTcbinddegree2015, edge.arrow.size=.3,vertex.color=color[V(VTcbindgraph2015)$CancerCD]) #from the plot we can see degree among different groups barely differ.
+centr_clo(VTcbindgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.3725413.
+centr_eigen(VTcbindgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.738008.
+centr_betw(VTcbindgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1547053.
+```
+
+```{r, echo=FALSE}
+# VT Combined 2015 ERGM
+library(intergraph)
+VTcbindnet2015<-asNetwork(VTcbindgraph2015)
+VTcbind2015ergm<-ergm(VTcbindnet2015~edges+nodematch("CancerCD", diff=T))  
+summary(VTcbind2015ergm)
+# The resulting edge parameter is -2.6470, which is the log of the edge odds, the corresponding probability is 0.06617415. 
+# The parameter of CancerCD.1 is 1.0375, the probability is 0.7383673.
+# The parameter of CancerCD.2 is 1.0243, the probability is 0.7358093.
+# The parameter of CancerCD.3 is -Inf.
+```
+
+```{r, echo=FALSE}
+###VT Send and Receive 2016
+VTsend2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_VT Send info.csv",header=TRUE,row.names = 1, sep = ","))
+VTreceive2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_VT Receive info.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+VTsend2016[is.na(VTsend2016)] <- 0
+VTreceive2016[is.na(VTreceive2016)] <- 0
+#combine Send and Receive matrix
+VTcbind2016<-VTsend2016+VTreceive2016
+# Create a binary adjacancy matrix
+VTcbind2016[VTcbind2016 < 3] <- 0
+VTcbind2016[VTcbind2016 >= 3] <- 1
+diag(VTcbind2016) <- 0
+# get network plot
+VTcbindgraph2016 <- graph_from_adjacency_matrix(VTcbind2016)
+plot(VTcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+### VT attribute 2016
+VTatr2016 <- read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_VT Attributes.csv",head=TRUE,sep=",")
+# Choose the CancerCD attribute
+VTatr2016$CancerCD[is.na(VTatr2016$CancerCD)] <- 3
+VTatr2016$CancerCD[VTatr2016$CancerCD==0] <- 3
+VTatr2016$lab[VTatr2016$CancerCD == 1] <- 'Ca'
+VTatr2016$lab[VTatr2016$CancerCD == 2] <- 'Cd'
+VTatr2016$lab[VTatr2016$CancerCD == 3] <- 'Dk'
+V(VTcbindgraph2016)$CancerCD <- VTatr2016$CancerCD
+# get new plot
+color <- c("blue", "green", "pink")
+plot(VTcbindgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(VTcbindgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# VT 2016 network description
+#density
+ecount(VTcbindgraph2016)/(vcount(VTcbindgraph2016)*(vcount(VTcbindgraph2016)-1)) #This is the density value 0.1117647, which can be compared with year 2015.
+#reciprocity
+reciprocity(VTcbindgraph2016)
+dyad_census(VTcbindgraph2016)
+2*dyad_census(VTcbindgraph2016)$mut/ecount(VTcbindgraph2016) #reciprocity is 0.2556391, it's the proportion of reciprocated ties for this network.
+#degree
+VTcbinddegree2016 <- degree(VTcbindgraph2016, mode ='all')
+VTcbinddegree2016 #so we can see the top 3 nodes with highest total degree are VT48 VT16 VT09.
+plot(VTcbindgraph2016, vertex.size = 4+0.5*VTcbinddegree2016, edge.arrow.size=.3,vertex.color=color[V(VTcbindgraph2016)$CancerCD]) #from the plot we can see group Dk tend to have the higher degree.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(VTcbindgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.4988421.
+centr_eigen(VTcbindgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.7041487.
+centr_betw(VTcbindgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.1069293.
+```
+
+```{r, echo=FALSE}
+# VT Combined 2016 ERGM
+VTcbindnet2016<-asNetwork(VTcbindgraph2016)
+VTcbind2016ergm<-ergm(VTcbindnet2016~edges+nodematch("CancerCD", diff=T))  
+summary(VTcbind2016ergm)
+# The resulting edge parameter is -2.12596, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge), the corresponding probability is 0.1065991.
+# The parameter of CancerCD.1 is 0.43429 and the probability is 0.6068976.
+# The parameter of CancerCD.2 is 0.41298 and the probability is 0.6018022.
+# The parameter of CancerCD.3 is -0.07126 and the probability is 0.4821925.
+```
+
+```{r, echo=FALSE}
+### VT how do you know 2015
+VThow2015<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2015/Roundtables_SNA_2015_100716_VT How do you know.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+VThow2015[is.na(VThow2015)] <- 0
+# Create a binary adjacancy matrix
+VThow2015[VThow2015 < 3] <- 0
+VThow2015[VThow2015 >= 3] <- 1
+diag(VThow2015) <- 0
+# get network plot
+VThowgraph2015 <- graph_from_adjacency_matrix(VThow2015)
+plot(VThowgraph2015, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2015
+V(VThowgraph2015)$CancerCD <- VTatr2015$CancerCD
+# get new plot
+plot(VThowgraph2015, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(VThowgraph2015)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# VT how do you know 2015 network description
+#density
+ecount(VThowgraph2015)/(vcount(VThowgraph2015)*(vcount(VThowgraph2015)-1)) #This is the density value 0.02643678, which can be compared with year 2016.
+#reciprocity
+reciprocity(VThowgraph2015)
+dyad_census(VThowgraph2015)
+2*dyad_census(VThowgraph2015)$mut/ecount(VThowgraph2015) #reciprocity is 0.173913, it's the proportion of reciprocated ties for this network.
+#degree
+VThowdegree2015 <- degree(VThowgraph2015,mode='all')
+plot(VThowgraph2015, vertex.size = 4+0.5*VThowdegree2015, edge.arrow.size=.3,vertex.color=color[V(VThowgraph2015)$CancerCD]) #from the plot we can see 3 groups have low degrees.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(VThowgraph2015,mode='all',normalized=T) #The centralization of the whole network is 0.0275859.
+centr_eigen(VThowgraph2015,directed=T, normalized=T) #The eigenvector of the whole network is 0.9015827.
+centr_betw(VThowgraph2015,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.01375913.
+```
+
+```{r, echo=FALSE}
+# VT how do you know 2015 ERGM
+VThownet2015<-asNetwork(VThowgraph2015)
+VThow2015ergm<-ergm(VThownet2015~edges)  
+summary(VThow2015ergm)
+# The resulting edge parameter is -3.6062, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.02643695: exp(-3.6062)/(1+exp(-3.6062))
+```
+
+```{r, echo=FALSE}
+### VT how do you know 2016
+VThow2016<-data.matrix(read.csv("/home/zhuyunning/Downloads/Social/data2016/Roundtables_SNA_2016_081916_VT how do you know.csv",header=TRUE,row.names = 1, sep = ","))
+# Clean the file
+VThow2016[is.na(VThow2016)] <- 0
+# Create a binary adjacancy matrix
+VThow2016[VThow2016 < 3] <- 0
+VThow2016[VThow2016 >= 3] <- 1
+diag(VThow2016) <- 0
+# get network plot
+VThowgraph2016 <- graph_from_adjacency_matrix(VThow2016)
+plot(VThowgraph2016, vertex.size = 8, edge.arrow.size=0.5)
+```
+
+```{r, echo=FALSE}
+# add CancerCD attribute 2016
+V(VThowgraph2016)$CancerCD <- VTatr2016$CancerCD
+# get new plot
+plot(VThowgraph2016, vertex.size = 8, edge.arrow.size=0.5,vertex.color=color[V(VThowgraph2016)$CancerCD])
+```
+
+```{r, echo=FALSE}
+# VT how do you know 2016 network description
+#density
+ecount(VThowgraph2016)/(vcount(VThowgraph2016)*(vcount(VThowgraph2016)-1)) #This is the density value 0.1747899, which can be compared with year 2015.
+#reciprocity
+reciprocity(VThowgraph2016)
+dyad_census(VThowgraph2016)
+2*dyad_census(VThowgraph2016)$mut/ecount(VThowgraph2016) #reciprocity is 0.3557692, it's the proportion of reciprocated ties for this network.
+#degree
+VThowdegree2016 <- degree(VThowgraph2016,mode='all')
+plot(VThowgraph2016, vertex.size = 4+0.5*VThowdegree2016, edge.arrow.size=.3,vertex.color=color[V(VThowgraph2016)$CancerCD]) #from the plot we can see group Ca and Dk of CancerCD(blue and pink nodes) tend to have the higher degree and also a few green nodes.
+#centrality: closeness, eigenvector and betweenness
+centr_clo(VThowgraph2016,mode='all',normalized=T) #The centralization of the whole network is 0.4897462.
+centr_eigen(VThowgraph2016,directed=T, normalized=T) #The eigenvector of the whole network is 0.6312527.
+centr_betw(VThowgraph2016,directed=T,normalized=T) #The betweenness centralization of the whole network is 0.116527.
+```
+
+```{r, echo=FALSE}
+# VT how do you know 2016 ERGM
+VThownet2016<-asNetwork(VThowgraph2016)
+VThow2016ergm<-ergm(VThownet2016~edges)  
+summary(VThow2016ergm)
+# The resulting edge parameter is -1.55205, which is the log of the edge odds, i.e. log(#dyads-w-edge/#dyads-no-edge)
+# The corresponding probability is 0.1747904: exp(-1.55205)/(1+exp(-1.55205))
+```
+
+
