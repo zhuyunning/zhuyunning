@@ -1,0 +1,566 @@
+---
+title: "workforce"
+author: "Jingning Li, Xin Yuan, Xinyi Wang, Yunning Zhu"
+date: "9/3/2017"
+output: html_document
+---
+
+# divide code into six parts, using boolean value to control which code in the corresponding part will be executed;   
+```{r, echo = FALSE}
+pt0 = TRUE   # functions and paramters
+pt1 = TRUE  # read, merge, and save dat; else load dat
+pt2 = TRUE  # create and save gapdat with basic variables (fixed vars, gap length, gap status); else load gapdat
+pt3 = TRUE  # calculate concurrent project count and funding and save gapdat.full; else load gapdat.full
+pt4 = TRUE  # logistic modeling 
+pt5 = TRUE  # validate with 2010 gaps 
+pt6 = TRUE  # sundry pieces. 1) SY influence figure 2) scaled models 3) pred v gap length 4) pred v SY 5) intx mod 
+```
+
+# import libraries; define two functions: months_between to calculate the gap length; active.grants to obtain cocurrent projects number and concurrent funding
+```{r, echo = FALSE}
+if (pt0) {
+  library(MASS)
+  library(lme4)
+  library(moments)
+  library(ggplot2)
+  library(caret)
+  library(foreach)
+  library(iterators)
+  library(doParallel)
+  library(e1071)
+  
+  days.per.month = 365/12
+
+  months_between = function(date1,date2) {
+    months= as.numeric(round((date2-date1)/days.per.month))
+    return(max(0,months))
+  }
+  
+  active.grants = function(PPID,pjnum,date) {
+    og = dat[dat$PPID==PPID & ! dat$pjnum==pjnum,] # capture other projects under the same principal investigator 
+    return(     c(sum(date>=og$Budget.Start.Date & # if the date which are 1998-01-01, 2002-01-01, 2006-01-01 are between other projects' Budget Start Date and other projects' Project End Date, then other projects will be considered as concurrent project
+                        
+date<og$Project.End.Date),sum(og$FY.Total.Cost.by.IC[date>=og$Budget.Start.Date & date<og$Project.End.Date]))         )
+  }
+}
+```
+
+# load metadata, manipulate metadata and add two potential predictors: Carneige Classfication and idea;   
+```{r, echo = FALSE}
+if (pt1) {
+  dat08 = read.csv('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/NIGMS_R01_R37_93_08.csv',head=T,stringsAsFactors = FALSE) # read metadata
+  dat08$Project.Start.Date = as.Date(dat08$Project.Start.Date,format='%m/%d/%y') # format date
+  dat08$Project.End.Date   = as.Date(dat08$Project.End.Date,format='%m/%d/%y') # format date
+  dat08$Budget.Start.Date  = as.Date(dat08$Budget.Start.Date,format='%m/%d/%y') # format date
+  dat08$Budget.End.Date    = as.Date(dat08$Budget.End.Date,format='%m/%d/%y') # format date
+  
+  dat15 = read.csv('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/NIGMS_R01_R37_09_15.csv',head=T,stringsAsFactors = FALSE) # read metadata
+  dat15$Project.Start.Date = as.Date(dat15$Project.Start.Date,format='%m/%d/%y') # format date
+  dat15$Project.End.Date   = as.Date(dat15$Project.End.Date,format='%m/%d/%y') # format date
+  dat15$Budget.Start.Date  = as.Date(dat15$Budget.Start.Date,format='%m/%d/%y') # format date
+  dat15$Budget.End.Date    = as.Date(dat15$Budget.End.Date,format='%m/%d/%y') # format date
+  
+  dat15 = dat15[,-31]
+  names(dat08)[names(dat08) == 'Contact.PI..Person.ID'] <- 'PPID' # rename column name
+  names(dat15)[names(dat15) == 'Contact.PI..Person.ID'] <- 'PPID' # rename column name
+  dat = rbind(dat08,dat15) # combine two metadata to one
+  dat = dat[which(dat$Type %in% c(1,2,9)),] # keep only competing award                                     
+  dat = dat[,c('PPID','Project.Number','Type','FY','Project.Start.Date','Project.End.Date','Budget.Start.Date',
+               'Budget.End.Date','Support.Year','Organization.State','FY.Total.Cost.by.IC','Organization.Name')] # keep useful columns
+  dat$pjnum = as.numeric(substr(as.character(dat$Project.Number),7,12)) # keep only numeric value in Project.Number to be easily compared with each other 
+  dat = dat[order(dat$PPID,dat$pjnum,dat$FY),] # sort dat in the order of PPID first, pjnum second and FY third
+  carndat = read.csv('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/carnfull.csv',head=T) # import the data with Carneige Classfication information
+  dat$Carn = carndat$BASIC2010[match(dat$Organization.Name,carndat$BestName)] # match the corresponding Carneige Classfication value with organization into one column named Carn
+  dat$Carn15 = ifelse(dat$Carn==15,1,0) # if the value of Carn is 15, turn the value into 1; if not, turn into 0
+  idea_states = c('AK','AR','DE','HI','ID','MT','WY','NV','NM','ND','SD','NE','KS','OK','LA','MS','KY','WV','SC','PR','ME','VT','NH','RI') # get the name of all IDeA states
+  dat$idea = ifelse(dat$Organization.State %in% idea_states,1,0) # if the state one organization belong is IDeA state, get the value of 1; if not, get the value of 0 
+  save(dat,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/analysis.data.RData')
+  # save the dat into analysis.data.RData
+} else {
+  load('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/analysis.data.RData')
+  # load analysis.data.RData 
+}
+```
+
+
+# create model data based on 1998-01-01
+```{r, echo = FALSE}
+if (pt2) {
+  #as of Jan 1 1998
+  if (TRUE) {
+    asof98 = as.Date('1998-01-01',format='%Y-%m-%d') # set the criterion date: 1998-01-01
+    gaps98 = data.frame(PPID=NA,pjnum=NA,Gap.Length=-1,SY=NA,FY=NA,idea=NA,Carn15=NA,Status6=NA,Status12=NA,Status18=NA,Status24=NA,Status30=NA,Status36=NA,StatusAny=NA)[0,]
+    for (i in 1:length(unique(dat$pjnum))) { # capture all the records in dat with the same project
+      pj = unique(dat$pjnum)[i]
+      pjdat = dat[dat$pjnum==pj,]
+      if (nrow(pjdat)>=2) { # if the numbre of records captures is larger than 1, there is at least one gap for that project number
+        for (j in 1:(nrow(pjdat)-1)) { # if the project's project end data is larger than four years before 1998-01-01 but smaller than 1998-01-01 and its next budget start date is larger than 1998-01-01, then the project will have one gap record in our model data
+          if (pjdat$Project.End.Date[j] < asof98 & pjdat$Project.End.Date[j] > (asof98-1461) & pjdat$Budget.Start.Date[j+1] > asof98) {
+            gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj
+                              ,Gap.Length=as.numeric((asof98-pjdat$Project.End.Date[j])/days.per.month) # gap length is calculated by substracting the project end date from 1998-01-01
+                              ,SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+            gaps$Status6 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof98+6*days.per.month,1,0) # judge whether one project re entered within 6 month after 1998-01-01
+            gaps$Status12 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof98+12*days.per.month,1,0)
+            gaps$Status18 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof98+18*days.per.month,1,0)
+            gaps$Status24 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof98+24*days.per.month,1,0)
+            gaps$Status30 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof98+30*days.per.month,1,0)
+            gaps$Status36 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof98+36*days.per.month,1,0)
+            gaps$StatusAny = 1
+            gaps98 = rbind(gaps98,gaps)
+          }
+        }
+        j=nrow(pjdat) # deal with the last row particularly due to the limit of loop
+        if (pjdat$Project.End.Date[j] < asof98 & pjdat$Project.End.Date[j] > (asof98-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj
+                            ,Gap.Length=as.numeric((asof98-pjdat$Project.End.Date[j])/days.per.month)
+                            ,SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps98 = rbind(gaps98,gaps)
+        }
+      } else {
+        j=1 # if the project have only one record in analysis dat
+        if (pjdat$Project.End.Date[1] < asof98 & pjdat$Project.End.Date[j] > (asof98-1461)) { # the same judge method
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof98-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps98 = rbind(gaps98,gaps)
+        }
+      }
+      if (i %% 250==0) print(i)
+    }
+  }
+}
+```
+
+
+# create model data based on 2002-01-01 and 2006-01-01; the same as creating model data based on 1998-01-01
+```{r, echo = FALSE}
+#as of Jan 1 2002
+  if (TRUE) {
+    asof02 = as.Date('2002-01-01',format='%Y-%m-%d')
+    gaps02 = data.frame(PPID=NA,pjnum=NA,Gap.Length=-1,SY=NA,FY=NA,idea=NA,Carn15=NA,Status6=NA,Status12=NA,Status18=NA,Status24=NA,Status30=NA,Status36=NA,StatusAny=NA)[0,]
+    for (i in 1:length(unique(dat$pjnum))) {
+      pj = unique(dat$pjnum)[i]
+      pjdat = dat[dat$pjnum==pj,]
+      if (nrow(pjdat)>=2) {
+        for (j in 1:(nrow(pjdat)-1)) {
+          if (pjdat$Project.End.Date[j] < asof02  & pjdat$Project.End.Date[j] > (asof02-1461) & pjdat$Budget.Start.Date[j+1] > asof02) {
+            gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof02-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+            gaps$Status6 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof02+6*days.per.month,1,0)
+            gaps$Status12 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof02+12*days.per.month,1,0)
+            gaps$Status18 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof02+18*days.per.month,1,0)
+            gaps$Status24 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof02+24*days.per.month,1,0)
+            gaps$Status30 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof02+30*days.per.month,1,0)
+            gaps$Status36 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof02+36*days.per.month,1,0)
+            gaps$StatusAny = 1
+            gaps02 = rbind(gaps02,gaps)
+          }
+        }
+        j=nrow(pjdat)
+        if (pjdat$Project.End.Date[j] < asof02 & pjdat$Project.End.Date[j] > (asof02-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof02-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps02 = rbind(gaps02,gaps)
+        }
+      } else {
+        j=1
+        if (pjdat$Project.End.Date[1] < asof02 & pjdat$Project.End.Date[j] > (asof02-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof02-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps02 = rbind(gaps02,gaps)
+        }
+      }
+      if (i %% 250==0) print(i)
+    }
+  }
+  
+  #as of Jan 1 2006
+  if (TRUE) {
+    asof06 = as.Date('2006-01-01',format='%Y-%m-%d')
+    gaps06 = data.frame(PPID=NA,pjnum=NA,Gap.Length=-1,SY=NA,FY=NA,idea=NA,Carn15=NA,Status6=NA,Status12=NA,Status18=NA,Status24=NA,Status30=NA,Status36=NA,StatusAny=NA)[0,]
+    for (i in 1:length(unique(dat$pjnum))) {
+      pj = unique(dat$pjnum)[i]
+      pjdat = dat[dat$pjnum==pj,]
+      if (nrow(pjdat)>=2) {
+        for (j in 1:(nrow(pjdat)-1)) {
+          if (pjdat$Project.End.Date[j] < asof06 & pjdat$Project.End.Date[j] > (asof06-1461) & pjdat$Budget.Start.Date[j+1] > asof06) {
+            gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof06-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+            gaps$Status6 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof06+6*days.per.month,1,0)
+            gaps$Status12 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof06+12*days.per.month,1,0)
+            gaps$Status18 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof06+18*days.per.month,1,0)
+            gaps$Status24 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof06+24*days.per.month,1,0)
+            gaps$Status30 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof06+30*days.per.month,1,0)
+            gaps$Status36 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof06+36*days.per.month,1,0)
+            gaps$StatusAny = 1
+            gaps06 = rbind(gaps06,gaps)
+          }
+        }
+        j=nrow(pjdat)
+        if (pjdat$Project.End.Date[j] < asof06 & pjdat$Project.End.Date[j] > (asof06-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof06-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps06 = rbind(gaps06,gaps)
+        }
+      } else {
+        j=1
+        if (pjdat$Project.End.Date[1] < asof06 & pjdat$Project.End.Date[j] > (asof06-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof06-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps06 = rbind(gaps06,gaps)
+        }
+      }
+      if (i %% 250==0) print(i)
+    }
+  save(gaps98,gaps02,gaps06,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/three.gapdats.RData')
+} else {
+  load('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/three.gapdats.RData')
+}
+```
+
+
+# add quartic term of support year and concurrent project number and concurrent funding to model data
+```{r, echo = FALSE}
+if (pt3) {
+  gaps98$SY2 = gaps98$SY*gaps98$SY # add quartic term of support year
+  gaps02$SY2 = gaps02$SY*gaps02$SY # add quartic term of support year
+  gaps06$SY2 = gaps06$SY*gaps06$SY # add quartic term of support year
+  
+  gaps98$Funding.Concurrent = gaps98$Num.Concurrent = NA # add two potential predictors: Concurrent Funding and Concurrent Project Number
+  for (i in 1:nrow(gaps98)) { # obtain Concurrent Funding and Conccurent Project Number to model data of 1998-01-01 by using the function of active.grants
+    if (i %% 25 == 0) print(i)
+    gaps98[i,c('Num.Concurrent','Funding.Concurrent')] = active.grants(gaps98$PPID[i],gaps98$pjnum[i],asof98)
+  }
+  gaps98$Funding.Concurrent = gaps98$Funding.Concurrent/1000 # make the concurrent funding 1k unit
+  
+  gaps02$Funding.Concurrent = gaps02$Num.Concurrent = NA
+  for (i in 1:nrow(gaps02)) { # same for model data of 2002-01-01
+    if (i %% 25 == 0) print(i)
+    gaps02[i,c('Num.Concurrent','Funding.Concurrent')] = active.grants(gaps02$PPID[i],gaps02$pjnum[i],asof02)
+  }
+  gaps02$Funding.Concurrent = gaps02$Funding.Concurrent/1000
+  
+  gaps06$Funding.Concurrent = gaps06$Num.Concurrent = NA
+  for (i in 1:nrow(gaps06)) { # same for model data of 2006-01-01
+    if (i %% 25 == 0) print(i)
+    gaps06[i,c('Num.Concurrent','Funding.Concurrent')] = active.grants(gaps06$PPID[i],gaps06$pjnum[i],asof06)
+  }
+  gaps06$Funding.Concurrent = gaps06$Funding.Concurrent/1000
+  
+  gapsAll = rbind(gaps98,gaps02,gaps06) # combine all data of 1998, 2002 and 2006 into gapsAll
+  save(gaps98,gaps02,gaps06,gapsAll,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/four.gapdats.RData') # save the data of 1998, 2002, 2006 and all into one: four.gapdats.RData
+} else {
+  load('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/four.gapdats.RData') # load the four.gapdats.RData
+}
+```
+
+
+# Model Construction and Prediction Functions
+```{r, echo = FALSE}
+if (pt4) {
+  # initial logistics model
+  basemod12 = glm(Status12 ~ Num.Concurrent + Funding.Concurrent + SY + Gap.Length + idea + FY + Carn15,data=gapsAll,family='binomial')
+  summary(basemod12)
+  mod12.2 = glm(Status12 ~ Num.Concurrent + SY + SY2 + Gap.Length + idea + FY + Carn15,data=gapsAll,family='binomial')
+  summary(mod12.2)
+  init1 = summary(basemod12)$coefficients
+  init2 = summary(mod12.2)$coefficients
+  save(init1,init2,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/initial.models.RData')
+  
+  # final model
+  fmod6 = glm(Status6 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=gapsAll,family='binomial')
+  summary(fmod6)
+  coefs6 = summary(fmod6)$coefficients[,'Estimate']
+  p6 = summary(fmod6)$coefficients[,'Pr(>|z|)']
+  
+  fmod12 = glm(Status12 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=gapsAll,family='binomial')
+  summary(fmod12)
+  coefs12 = summary(fmod12)$coefficients[,'Estimate']
+  p12 = summary(fmod12)$coefficients[,'Pr(>|z|)']
+  
+  fmod24 = glm(Status24 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=gapsAll,family='binomial')
+  summary(fmod24)
+  coefs24 = summary(fmod24)$coefficients[,'Estimate']
+  p24 = summary(fmod24)$coefficients[,'Pr(>|z|)']
+  
+  fmod36 = glm(Status36 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=gapsAll,family='binomial')
+  summary(fmod36)
+  coefs36 = summary(fmod36)$coefficients[,'Estimate']
+  p36 = summary(fmod36)$coefficients[,'Pr(>|z|)']
+  
+  fmodAny = glm(StatusAny ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=gapsAll,family='binomial')
+  summary(fmodAny)
+  coefsAny = summary(fmodAny)$coefficients[,'Estimate']
+  pAny = summary(fmodAny)$coefficients[,'Pr(>|z|)']
+  
+  # create the coefficient table with information of whether projects re-entred within 6, 12, 24, 36 months or whether projects re-entered 
+  coefstable = data.frame(row.names=c('Intercept','Num.Concurrent','SY','SY2','Gap.Length','FY'))
+  coefstable$within6 = coefs6
+  coefstable$within12 = coefs12
+  coefstable$within24 = coefs24
+  coefstable$within36 = coefs36
+  coefstable$withinAny = coefsAny
+  
+  ptable = data.frame(row.names=c('Intercept','Num.Concurrent','SY','SY2','Gap.Length','FY'))
+  ptable$within6 = p6
+  ptable$within12 = p12
+  ptable$within24 = p24
+  ptable$within36 = p36
+  ptable$withinAny = pAny
+  
+  save(coefstable,ptable,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/final.model.outputs.RData') # save the outcome to final.model.ouputs.RData
+} else {
+  load('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/final.model.outputs.RData') # load final.model.outputs.RData
+}
+  cf = coefstable
+  f6prob = function(Gap.Length,SY,FY,Num.Concurrent) { # function of obtaining the probability of re-entering with 6 months by using model
+    cfcol = 1
+    return(    1/(1+exp(-1*(cf['Intercept',cfcol]+cf['Num.Concurrent',cfcol]*Num.Concurrent + 
+                              cf['SY',cfcol]*SY + cf['SY2',cfcol]*SY*SY + cf['Gap.Length',cfcol]*Gap.Length + cf['FY',cfcol]*FY))))
+  }
+  
+  f12prob = function(Gap.Length,SY,FY,Num.Concurrent) { # function of obtaining the probability of re-ebtering with 12 months by using model
+    cfcol = 2
+    return(    1/(1+exp(-1*(cf['Intercept',cfcol]+cf['Num.Concurrent',cfcol]*Num.Concurrent + 
+                              cf['SY',cfcol]*SY + cf['SY2',cfcol]*SY*SY + cf['Gap.Length',cfcol]*Gap.Length + cf['FY',cfcol]*FY))))
+  }
+
+  f24prob = function(Gap.Length,SY,FY,Num.Concurrent) { # function of obtaining the probability of re-entering with 24 months by using model
+    cfcol = 3
+    return(    1/(1+exp(-1*(cf['Intercept',cfcol]+cf['Num.Concurrent',cfcol]*Num.Concurrent + 
+                              cf['SY',cfcol]*SY + cf['SY2',cfcol]*SY*SY + cf['Gap.Length',cfcol]*Gap.Length + cf['FY',cfcol]*FY))))
+  }
+  
+  f36prob = function(Gap.Length,SY,FY,Num.Concurrent) { # function of obtaining the probability of re-entering with 36 months by using model
+    cfcol = 4
+    return(    1/(1+exp(-1*(cf['Intercept',cfcol]+cf['Num.Concurrent',cfcol]*Num.Concurrent + 
+                              cf['SY',cfcol]*SY + cf['SY2',cfcol]*SY*SY + cf['Gap.Length',cfcol]*Gap.Length + cf['FY',cfcol]*FY))))
+  }
+  
+  fAnyprob = function(Gap.Length,SY,FY,Num.Concurrent) { # function of obtaining the probability of re-entering ever by using model
+    cfcol = 5
+    return(    1/(1+exp(-1*(cf['Intercept',cfcol]+cf['Num.Concurrent',cfcol]*Num.Concurrent + 
+                              cf['SY',cfcol]*SY + cf['SY2',cfcol]*SY*SY + cf['Gap.Length',cfcol]*Gap.Length + cf['FY',cfcol]*FY))))
+  }
+```
+
+
+# Model Prediction and Validation
+```{r, echo = FALSE}
+if (pt5) {
+  #as of Jan 1 2010
+  if (TRUE) {
+    asof10 = as.Date('2010-01-01',format='%Y-%m-%d') # format 2010-01-01 as the validation date
+    gaps10 = data.frame(PPID=NA,pjnum=NA,Gap.Length=-1,SY=NA,FY=NA,idea=NA,Carn15=NA,Status6=NA,Status12=NA,Status18=NA,Status24=NA,Status30=NA,Status36=NA,StatusAny=NA)[0,] # obtain the framework of the gaps10
+    for (i in 1:length(unique(dat$pjnum))) { # obtain the model data of the 2010 the same way of getting the same data of 1998, 2002 and 2006
+      pj = unique(dat$pjnum)[i]
+      pjdat = dat[dat$pjnum==pj,]
+      if (nrow(pjdat)>=2) {
+        for (j in 1:(nrow(pjdat)-1)) {
+          if (pjdat$Project.End.Date[j] < asof10 & pjdat$Project.End.Date[j] > (asof10-1461) & pjdat$Budget.Start.Date[j+1] > asof10) {
+            gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof10-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+            gaps$Status6 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof10+6*days.per.month,1,0)
+            gaps$Status12 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof10+12*days.per.month,1,0)
+            gaps$Status18 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof10+18*days.per.month,1,0)
+            gaps$Status24 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof10+24*days.per.month,1,0)
+            gaps$Status30 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof10+30*days.per.month,1,0)
+            gaps$Status36 = ifelse(pjdat$Budget.Start.Date[j+1] <= asof10+36*days.per.month,1,0)
+            gaps$StatusAny = 1
+            gaps10 = rbind(gaps10,gaps)
+          }
+        }
+        j=nrow(pjdat)
+        if (pjdat$Project.End.Date[j] < asof10 & pjdat$Project.End.Date[j] > (asof10-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof10-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps10 = rbind(gaps10,gaps)
+        }
+      } else  {
+        j=1
+        if (pjdat$Project.End.Date[1] < asof10 & pjdat$Project.End.Date[j] > (asof10-1461)) {
+          gaps = data.frame(PPID=pjdat$PPID[j],pjnum=pj,Gap.Length=as.numeric((asof10-pjdat$Project.End.Date[j])/days.per.month),SY=pjdat$Support.Year[j],FY=pjdat$FY[j],idea=pjdat$idea[j],Carn15=pjdat$Carn15[j])
+          gaps$StatusAny = gaps$Status36 = gaps$Status30 = gaps$Status24 = gaps$Status18 = gaps$Status12 = gaps$Status6 = 0
+          gaps10 = rbind(gaps10,gaps)
+        }
+      }
+      if (i %% 250==0) print(i)
+    }
+  }
+  
+  gaps10$SY2 = gaps10$SY*gaps10$SY # get the quadratic term of support year
+  
+  gaps10$Funding.Concurrent = gaps10$Num.Concurrent = NA # obtain the Concurrent Project Number and Concurrent Funding
+  for (i in 1:nrow(gaps10)) {
+    if (i %% 25 == 0) print(i)
+    gaps10[i,c('Num.Concurrent','Funding.Concurrent')] = active.grants(gaps10$PPID[i],gaps10$pjnum[i],asof10)
+  }
+  gaps10$Funding.Concurrent = gaps10$Funding.Concurrent/1000
+  
+  
+  gaps10$pred6 = apply(as.matrix(1:nrow(gaps10)),1,function(x) # make predictions of the probability of re-entering within 6 months after 2010-01-01
+f6prob(gaps10$Gap.Length[x],gaps10$SY[x],gaps10$FY[x],gaps10$Num.Concurrent[x])) 
+  gaps10$pred12 = apply(as.matrix(1:nrow(gaps10)),1,function(x) # make predictions of the probability of re-entering within 12 months after 2010-01-01
+f12prob(gaps10$Gap.Length[x],gaps10$SY[x],gaps10$FY[x],gaps10$Num.Concurrent[x]))
+  gaps10$pred24 = apply(as.matrix(1:nrow(gaps10)),1,function(x) # make predictions of the probability of re-entering within 24 months after 2010-01-01
+f24prob(gaps10$Gap.Length[x],gaps10$SY[x],gaps10$FY[x],gaps10$Num.Concurrent[x]))
+  gaps10$pred36 = apply(as.matrix(1:nrow(gaps10)),1,function(x) # make predictions of the probability of re-entering within 36 months after 2010-01-01
+f36prob(gaps10$Gap.Length[x],gaps10$SY[x],gaps10$FY[x],gaps10$Num.Concurrent[x]))
+  gaps10$predAny = apply(as.matrix(1:nrow(gaps10)),1,function(x) # make predictions of the probability of re-entering ever after 2010-01-01
+fAnyprob(gaps10$Gap.Length[x],gaps10$SY[x],gaps10$FY[x],gaps10$Num.Concurrent[x]))
+  
+  valtab = data.frame(row.names=c('Within 6 Months','Within 12 Months','Within 24 Months','Within 36 Months','Ever'))
+  valtab$pred = colSums(gaps10[,c('pred6','pred12','pred24','pred36','predAny')])
+  valtab$obs  = colSums(gaps10[,c('Status6','Status12','Status24','Status36','StatusAny')])
+  save(gaps10,valtab,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/validation.RData')
+} else {
+  load('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/validation.RData')
+}
+```
+
+
+# Visualization
+```{r, echo = FALSE}
+if (pt6) {
+  #SY influence fig
+  if (TRUE) {
+    syx = 1:40
+    syy=exp(syx*coefstable['SY','withinAny'])*exp(syx*syx*coefstable['SY2','withinAny'])
+    png('/Users/lijingning/Desktop/A/PRACTICUM/NIH/model_2/support.year.dependence.png')
+    plot(syx,syy,ann=F,pch=19,col='green',cex=1.5)
+    title(xlab='Support Year',ylab='Relative Re-entry Probability',main='Relative Probability of EVER Re-Entering vs Support Year')
+    dev.off()
+  }
+  
+  #comparing influence of each predictor
+  if (TRUE) {
+    #sds = c(sd(gaps10$Num.Concurrent),sd(gaps10$SY),sd(gaps10$SY2),sd(gaps10$Gap.Length),sd(gaps10$FY))
+    #coefstable[-1,]*sds
+    scaled = gapsAll
+    scaled$Gap.Length = scale(scaled$Gap.Length)
+    scaled$SY = scale(scaled$SY)
+    scaled$SY2 = scale(scaled$SY2)
+    scaled$FY = scale(scaled$FY)
+    scaled$Num.Concurrent = scale(scaled$Num.Concurrent)
+    smod6 = glm(Status6 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=scaled,family='binomial')
+    smod12 = glm(Status12 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=scaled,family='binomial')
+    smod24 = glm(Status24 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=scaled,family='binomial')
+    smod36 = glm(Status36 ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=scaled,family='binomial')
+    smodAny = glm(StatusAny ~ Num.Concurrent + SY + SY2 + Gap.Length + FY,data=scaled,family='binomial')
+    
+    summary(smod6)
+    scoefs6 = summary(smod6)$coefficients[,'Estimate']
+    summary(smod12)
+    scoefs12 = summary(smod12)$coefficients[,'Estimate']
+    summary(smod24)
+    scoefs24 = summary(smod24)$coefficients[,'Estimate']
+    summary(smod36)
+    scoefs36 = summary(smod36)$coefficients[,'Estimate']
+    summary(smodAny)
+    scoefsAny = summary(smodAny)$coefficients[,'Estimate']
+    
+    
+    scaledcoefstable = data.frame(row.names=c('Intercept','Num.Concurrent','SY','SY2','Gap.Length','FY'))
+    scaledcoefstable$within6 = scoefs6
+    scaledcoefstable$within12 = scoefs12
+    scaledcoefstable$within24 = scoefs24
+    scaledcoefstable$within36 = scoefs36
+    scaledcoefstable$withinAny = scoefsAny
+    save(scaledcoefstable,file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/scaled.coefficients.RData')
+    write.csv(round(scaledcoefstable,2),file='/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/scaled.coefficients.csv',row.names=T)
+  }
+  
+  #pred vs re-entry
+  if (TRUE) {
+    #predd12 vs re-entry
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/pred12.vs.re-entry.boxplots.png')
+    boxplot(gaps10$pred12 ~ ifelse(gaps10$Status12==1,'Yes','No'),col=c('red','green'),ann=F,xlab='Re-entered Within 12 Months',ylab='Modeled Probability of Re-entry')
+    title(main='Box Plots of Modeled Re-entry Probability (12 Months)\nvs Observed Re-entry (12 Months)')
+    dev.off()
+    
+    #predd24 vs re-entry
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/pred24.vs.re-entry.boxplots.png')
+    boxplot(gaps10$pred24 ~ ifelse(gaps10$Status24==1,'Yes','No'),col=c('red','green'),ann=F,xlab='Re-entered Within 24 Months',ylab='Modeled Probability of Re-entry')
+    title(main='Box Plots of Modeled Re-entry Probability (24 Months)\nvs Observed Re-entry (24 Months)')
+    dev.off()
+    
+    #predAny vs re-entry
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/predAny.vs.re-entry.boxplots.png')
+    boxplot(gaps10$predAny ~ ifelse(gaps10$StatusAny==1,'Yes','No'),col=c('blue','yellow'),ann=F,xlab='Re-entered Any Time',ylab='Modeled Probability of Re-entry')
+    title(main='Box Plots of Modeled Re-entry Probability (Any Time)\nvs Observed Re-entry (Any Time)')
+    dev.off()
+  }
+  
+  #pred vs gap length
+  if (TRUE) {
+    #pred12 vs gap length
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/pred12.vs.gaplength.png')
+    plot(gaps10$Gap.Length,gaps10$pred12,pch=19,col=ifelse(gaps10$Status12==1,rgb(0,1,0,0.45),rgb(1,0,0,.45)),ann=F)
+    title(xlab='Gap Length (Months)',ylab='Probability of Re-entry Within 12 Months',main='Modeled Re-entry Probability (12 Months) vs Gap Length')
+    legend('topright',legend=c('Re-entered','Still Unfunded'),fill=c(rgb(0,1,0,0.8),rgb(1,0,0,0.8)))
+    dev.off()
+    
+    #pred24 vs gap length
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/pred24.vs.gaplength.png')
+    plot(gaps10$Gap.Length,gaps10$pred24,pch=19,col=ifelse(gaps10$Status24==1,rgb(0,1,0,0.45),rgb(1,0,0,.45)),ann=F)
+    title(xlab='Gap Length (Months)',ylab='Probability of Re-entry Within 24 Months',main='Modeled Re-entry Probability (24 Months) vs Gap Length')
+    legend('topright',legend=c('Re-entered','Still Unfunded'),fill=c(rgb(0,1,0,0.8),rgb(1,0,0,0.8)))
+    dev.off()
+    
+    #predAny vs gap length
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/predAny.vs.gaplength.png')
+    plot(gaps10$Gap.Length,gaps10$predAny,pch=19,col=ifelse(gaps10$StatusAny==1,rgb(0,1,0,0.45),rgb(1,0,0,.45)),ann=F)
+    title(xlab='Gap Length (Months)',ylab='Probability of Any Re-entry',main='Modeled Re-entry Probability (Any Time) vs Gap Length')
+    legend('topright',legend=c('Re-entered','Still Unfunded'),fill=c(rgb(0,1,0,0.8),rgb(1,0,0,0.8)))
+    dev.off()
+  }
+  
+  #pred vs SY
+  if (TRUE) {
+    #pred12 vs SY
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/pred12.vs.SY.png')
+    plot(gaps10$SY,gaps10$pred12,pch=19,col=ifelse(gaps10$Status12==1,rgb(0,1,0,0.45),rgb(1,0,0,.45)),ann=F)
+    title(xlab='Support Year',ylab='Probability of Re-entry Within 12 Months',main='Modeled Re-entry Probability (12 Months) vs Support Year')
+    legend('topright',legend=c('Re-entered','Still Unfunded'),fill=c(rgb(0,1,0,0.8),rgb(1,0,0,0.8)))
+    dev.off()
+    
+    #pred24 vs SY
+    png('/Users/lijingning/Desktop/A/PRACTICUM/NIH/model_2/pred24.vs.SY.png')
+    plot(gaps10$SY,gaps10$pred24,pch=19,col=ifelse(gaps10$Status24==1,rgb(0,1,0,0.45),rgb(1,0,0,.45)),ann=F)
+    title(xlab='Support Year',ylab='Probability of Re-entry Within 24 Months',main='Modeled Re-entry Probability (24 Months) vs Support Year')
+    legend('topright',legend=c('Re-entered','Still Unfunded'),fill=c(rgb(0,1,0,0.8),rgb(1,0,0,0.8)))
+    dev.off()
+    
+    #predAny vs SY
+    png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/predAny.vs.SY.png')
+    plot(gaps10$SY,gaps10$predAny,pch=19,col=ifelse(gaps10$StatusAny==1,rgb(0,1,0,0.45),rgb(1,0,0,.45)),ann=F)
+    title(xlab='Support Year',ylab='Probability of Any Re-entry',main='Modeled Re-entry Probability (Any Time) vs Support Year')
+    legend('topright',legend=c('Re-entered','Still Unfunded'),fill=c(rgb(0,1,0,0.8),rgb(1,0,0,0.8)))
+    dev.off()
+  }
+  
+  #naive vs model
+  if (TRUE) {
+    nv = data.frame(row.names=c('Gaps2010.Within6','Gaps2010.Within12','Gaps2010.Within24','Gaps2010.Within36','Gaps2010.Any'))
+    nv$frac98 = c(sum(gaps98$Status6)/nrow(gaps98),sum(gaps98$Status12)/nrow(gaps98),sum(gaps98$Status24)/nrow(gaps98),sum(gaps98$Status36)/nrow(gaps98),sum(gaps98$StatusAny)/nrow(gaps98))
+    nv$frac02= c(sum(gaps02$Status6)/nrow(gaps02),sum(gaps02$Status12)/nrow(gaps02),sum(gaps02$Status24)/nrow(gaps02),sum(gaps02$Status36)/nrow(gaps02),sum(gaps02$StatusAny)/nrow(gaps02))
+    nv$frac06 = c(sum(gaps06$Status6)/nrow(gaps06),sum(gaps06$Status12)/nrow(gaps06),sum(gaps06$Status24)/nrow(gaps06),sum(gaps06$Status36)/nrow(gaps06),sum(gaps06$StatusAny)/nrow(gaps06))
+    nv$fracAll = c(sum(gapsAll$Status6)/nrow(gapsAll),sum(gapsAll$Status12)/nrow(gapsAll),sum(gapsAll$Status24)/nrow(gapsAll),sum(gapsAll$Status36)/nrow(gapsAll),sum(gapsAll$StatusAny)/nrow(gapsAll))
+    nv$naive98 = nv$frac98*nrow(gaps10)
+    nv$naive02 = nv$frac02*nrow(gaps10)
+    nv$naive06 = nv$frac06*nrow(gaps10)
+    nv$naiveAll = nv$fracAll*nrow(gaps10)
+    nv$modPred = c(sum(gaps10$pred6),sum(gaps10$pred12),sum(gaps10$pred24),sum(gaps10$pred36),sum(gaps10$predAny))
+    nv$observed = c(sum(gaps10$Status6),sum(gaps10$Status12),sum(gaps10$Status24),sum(gaps10$Status36),sum(gaps10$StatusAny))
+    
+  }
+  png('/Users/lijingning/Desktop/A/PRACTICUM/GW/Final/validation.plot.png')
+  plot(valtab$obs,valtab$pred,pch=19,col=c('red','orange','green','blue','black'),ann=F,ylim=c(0,max(nv$naiveAll)),cex=2)
+  points(valtab$obs,nv$naiveAll,pch=17,cex=2,col=c('red','orange','green','blue','black'))
+  title(ylab='Predicted Number of Projects Re-entering',xlab='Observed Number of Projects Re-entering',main='Predicted vs Observed Re-entry')
+  abline(0,1)
+  legend('bottomright',legend=c('6 Months','12 months','24 Months','36 Months','Ever'),fill=c('red','orange','green','blue','black'))
+  legend('bottom',legend=c('Modeled','Naive'),pch=c(19,17),cex=1.5)
+  dev.off()
+  
+  ### Gap.Length virtually always biggest effect. Then SY and -SY2 50-90% as influential. Then Num.Concurrent and FY ~10% as influential. 
+  xmod12 = glm(Status12 ~ Num.Concurrent + + Funding.Concurrent + Num.Concurrent*Funding.Concurrent + SY + SY2 + Gap.Length + FY,data=scaled,family='binomial')
+}
+```
